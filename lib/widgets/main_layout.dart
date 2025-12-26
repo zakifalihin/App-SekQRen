@@ -1,22 +1,23 @@
-// lib/widgets/main_layout.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../pages/kelas/daftar_kelas_screen.dart'; // Sesuaikan path jika perlu
-import '../pages/qr_scanner_page.dart';     // Sesuaikan path jika perlu
-import '../pages/login_page.dart';         // Sesuaikan path jika perlu
+import '../pages/kelas/daftar_kelas_screen.dart';
+import '../pages/qr_scanner_page.dart';
+import '../pages/login_page.dart';
+import '../pages/dashboard_page.dart'; // Pastikan import dashboard ada
 
 class MainLayout extends StatefulWidget {
   final String title;
-  final Widget body; // biasanya halaman Home
+  final Widget? body; // Ubah menjadi opsional agar bisa fallback ke dashboard
   final VoidCallback? onRefresh;
+  final int initialIndex; // Tambahkan index awal jika diperlukan
 
   const MainLayout({
     super.key,
     required this.title,
-    required this.body,
+    this.body,
     this.onRefresh,
+    this.initialIndex = 0,
   });
 
   @override
@@ -28,21 +29,20 @@ class _MainLayoutState extends State<MainLayout> with TickerProviderStateMixin {
   late Animation<double> _fabScaleAnimation;
   late Animation<double> _fabRotationAnimation;
 
-  int _selectedIndex = 0;
-
-  // ✅ Taruh daftar halaman di sini
-  late final List<Widget> _pages;
+  late int _selectedIndex;
+  late final List<Widget> _mainPages;
 
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.initialIndex;
 
-    // isi daftar halaman bottom navigation
-    _pages = [
-      widget.body,                   // index 0 → Home
-      const DaftarKelasScreen(),     // index 1 → Kelas
-      const Center(child: Text("Aktivitas (TODO)")), // index 2 → Aktivitas
-      const Center(child: Text("Akun (TODO)")),      // index 3 → Akun
+    // Definisikan halaman dasar aplikasi
+    _mainPages = [
+      const DashboardPage(),         // Index 0: Home/Dashboard
+      const DaftarKelasScreen(),     // Index 1: Kelas
+      const Center(child: Text("Aktivitas (TODO)")),
+      const Center(child: Text("Akun (TODO)")),
     ];
 
     _fabAnimationController = AnimationController(
@@ -50,21 +50,13 @@ class _MainLayoutState extends State<MainLayout> with TickerProviderStateMixin {
       vsync: this,
     );
 
-    _fabScaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.1,
-    ).animate(CurvedAnimation(
-      parent: _fabAnimationController,
-      curve: Curves.elasticOut,
-    ));
+    _fabScaleAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
+      CurvedAnimation(parent: _fabAnimationController, curve: Curves.elasticOut),
+    );
 
-    _fabRotationAnimation = Tween<double>(
-      begin: 0.0,
-      end: 0.1,
-    ).animate(CurvedAnimation(
-      parent: _fabAnimationController,
-      curve: Curves.easeInOut,
-    ));
+    _fabRotationAnimation = Tween<double>(begin: 0.0, end: 0.1).animate(
+      CurvedAnimation(parent: _fabAnimationController, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -73,35 +65,37 @@ class _MainLayoutState extends State<MainLayout> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  Future<void> _logout(BuildContext context) async {
-    if (context.mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-            (_) => false,
+  void _onNavigate(int index) {
+    // Jika sedang di detail (body tidak null), bersihkan stack dan balik ke root
+    if (widget.body != null) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => MainLayout(
+            title: index == 0 ? "Dashboard Guru" : "Daftar Kelas",
+            initialIndex: index, // Tentukan tab mana yang aktif
+          ),
+        ),
+            (route) => false, // 🚀 Bagian ini yang menghapus semua tumpukan lama
       );
+    } else {
+      // Jika sudah di menu utama, cukup ganti index tanpa pindah halaman
+      setState(() {
+        _selectedIndex = index;
+      });
     }
   }
 
   void _onFabPressed() {
-    _fabAnimationController.forward().then((_) {
-      _fabAnimationController.reverse();
-    });
-
+    _fabAnimationController.forward().then((_) => _fabAnimationController.reverse());
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const QrScannerPage()),
-    ).then((_) {
-      if (widget.onRefresh != null) {
-        widget.onRefresh!();
-      }
-    });
+      MaterialPageRoute(builder: (_) => const QrScannerPage(mode: ScannerMode.ABSENSI_GURU)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 360;
+    final isSmallScreen = MediaQuery.of(context).size.width < 360;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -109,274 +103,101 @@ class _MainLayoutState extends State<MainLayout> with TickerProviderStateMixin {
         title: ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
             colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
           ).createShader(bounds),
           child: Text(
-            widget.title,
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w700,
-              fontSize: isSmallScreen ? 18 : 20,
-              color: Colors.white,
-            ),
+            _selectedIndex == 0 && widget.body == null ? widget.title : _getPageTitle(),
+            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: isSmallScreen ? 18 : 20, color: Colors.white),
           ),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
         automaticallyImplyLeading: false,
-        shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-        ),
       ),
 
-      // ✅ Ganti body berdasarkan index
-      body: _pages[_selectedIndex],
+      // Tampilkan widget.body jika ada (Detail), jika tidak tampilkan tab menu (_mainPages)
+      body: widget.body ?? _mainPages[_selectedIndex],
 
-      floatingActionButton: AnimatedBuilder(
-        animation: _fabAnimationController,
-        builder: (context, child) {
-          final fabSize = isSmallScreen ? 56.0 : 64.0;
-          return Transform.scale(
-            scale: _fabScaleAnimation.value,
-            child: Transform.rotate(
-              angle: _fabRotationAnimation.value,
-              child: Container(
-                width: fabSize,
-                height: fabSize,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(fabSize / 2),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6366F1).withOpacity(0.4),
-                      offset: const Offset(0, 8),
-                      blurRadius: 24,
-                      spreadRadius: 0,
-                    ),
-                    BoxShadow(
-                      color: const Color(0xFF6366F1).withOpacity(0.2),
-                      offset: const Offset(0, 4),
-                      blurRadius: 12,
-                      spreadRadius: 0,
-                    ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _onFabPressed,
-                    borderRadius: BorderRadius.circular(fabSize / 2),
-                    child: Center(
-                      child: Icon(
-                        Icons.qr_code_scanner_rounded,
-                        size: isSmallScreen ? 24 : 28,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+      floatingActionButton: _buildFab(isSmallScreen),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: _buildBottomNav(isSmallScreen),
+    );
+  }
 
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              offset: const Offset(0, -4),
-              blurRadius: 24,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: BottomAppBar(
-          shape: const CircularNotchedRectangle(),
-          notchMargin: isSmallScreen ? 4 : 8,
-          color: Colors.transparent,
-          elevation: 0,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              Expanded(
-                child: _BottomAppBarItem(
-                  icon: Icons.home_rounded,
-                  label: "Home",
-                  isSelected: _selectedIndex == 0,
-                  isSmallScreen: isSmallScreen,
-                  onPressed: () {
-                    setState(() {
-                      _selectedIndex = 0;
-                    });
-                  },
-                ),
-              ),
-              Expanded(
-                child: _BottomAppBarItem(
-                  icon: Icons.school_rounded,
-                  label: "Kelas",
-                  isSelected: _selectedIndex == 1,
-                  isSmallScreen: isSmallScreen,
-                  onPressed: () {
-                    setState(() {
-                      _selectedIndex = 1;
-                    });
-                  },
-                ),
-              ),
+  String _getPageTitle() {
+    if (widget.body != null) return widget.title;
+    switch (_selectedIndex) {
+      case 1: return "Daftar Kelas";
+      case 2: return "Aktivitas";
+      case 3: return "Akun";
+      default: return "Dashboard Guru";
+    }
+  }
 
-              SizedBox(width: isSmallScreen ? 32 : 40), // ruang FAB
-
-              Expanded(
-                child: _BottomAppBarItem(
-                  icon: Icons.mail_outline_rounded,
-                  label: "Aktivitas",
-                  isSelected: _selectedIndex == 2,
-                  isSmallScreen: isSmallScreen,
-                  onPressed: () {
-                    setState(() {
-                      _selectedIndex = 2;
-                    });
-                  },
-                ),
-              ),
-              Expanded(
-                child: _BottomAppBarItem(
-                  icon: Icons.person_rounded,
-                  label: "Akun",
-                  isSelected: _selectedIndex == 3,
-                  isSmallScreen: isSmallScreen,
-                  onPressed: () {
-                    setState(() {
-                      _selectedIndex = 3;
-                    });
-                  },
-                ),
-              ),
-            ],
+  Widget _buildFab(bool isSmallScreen) {
+    final fabSize = isSmallScreen ? 56.0 : 64.0;
+    return AnimatedBuilder(
+      animation: _fabAnimationController,
+      builder: (context, child) => Transform.scale(
+        scale: _fabScaleAnimation.value,
+        child: Container(
+          width: fabSize, height: fabSize,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(fabSize / 2),
+            gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
+            boxShadow: [BoxShadow(color: const Color(0xFF6366F1).withOpacity(0.4), blurRadius: 24, offset: const Offset(0, 8))],
           ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(onTap: _onFabPressed, borderRadius: BorderRadius.circular(fabSize / 2), child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNav(bool isSmallScreen) {
+    return Container(
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      child: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _BottomAppBarItem(icon: Icons.home_rounded, label: "Home", isSelected: _selectedIndex == 0 && widget.body == null, isSmallScreen: isSmallScreen, onPressed: () => _onNavigate(0)),
+            _BottomAppBarItem(icon: Icons.school_rounded, label: "Kelas", isSelected: _selectedIndex == 1 && widget.body == null, isSmallScreen: isSmallScreen, onPressed: () => _onNavigate(1)),
+            const SizedBox(width: 40),
+            _BottomAppBarItem(icon: Icons.mail_outline_rounded, label: "Aktivitas", isSelected: _selectedIndex == 2, isSmallScreen: isSmallScreen, onPressed: () => _onNavigate(2)),
+            _BottomAppBarItem(icon: Icons.person_rounded, label: "Akun", isSelected: _selectedIndex == 3, isSmallScreen: isSmallScreen, onPressed: () => _onNavigate(3)),
+          ],
         ),
       ),
     );
   }
 }
 
-class _BottomAppBarItem extends StatefulWidget {
+// Class _BottomAppBarItem tetap sama seperti sebelumnya
+class _BottomAppBarItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool isSelected;
   final bool isSmallScreen;
   final VoidCallback onPressed;
 
-  const _BottomAppBarItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.isSmallScreen,
-    required this.onPressed,
-  });
-
-  @override
-  State<_BottomAppBarItem> createState() => _BottomAppBarItemState();
-}
-
-class _BottomAppBarItemState extends State<_BottomAppBarItem>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 150),
-      vsync: this,
-    );
-
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.9,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _handleTap() {
-    _animationController.forward().then((_) {
-      _animationController.reverse();
-    });
-    widget.onPressed();
-  }
+  const _BottomAppBarItem({required this.icon, required this.label, required this.isSelected, required this.isSmallScreen, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = widget.isSmallScreen ? 14.0 : 18.0;
-    final fontSize = widget.isSmallScreen ? 9.0 : 10.5;
-
-    return GestureDetector(
-      onTap: _handleTap,
-      child: AnimatedBuilder(
-        animation: _animationController,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _scaleAnimation.value,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: widget.isSmallScreen ? 20 : 24,
-                  height: widget.isSmallScreen ? 20 : 24,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    color: widget.isSelected
-                        ? const Color(0xFF6366F1)
-                        : Colors.transparent,
-                  ),
-                  child: Icon(
-                    widget.icon,
-                    color: widget.isSelected
-                        ? Colors.white
-                        : const Color(0xFF64748B),
-                    size: iconSize,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  widget.label,
-                  style: GoogleFonts.inter(
-                    color: widget.isSelected
-                        ? const Color(0xFF6366F1)
-                        : const Color(0xFF64748B),
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          );
-        },
+    return Expanded(
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF64748B), size: isSmallScreen ? 18 : 22),
+            Text(label, style: GoogleFonts.inter(color: isSelected ? const Color(0xFF6366F1) : const Color(0xFF64748B), fontSize: isSmallScreen ? 10 : 11)),
+          ],
+        ),
       ),
     );
   }

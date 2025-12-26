@@ -1,14 +1,13 @@
-import 'package:flutter/foundation.dart';
+// File: lib/models/detail_mapel.dart (PERBAIKAN FINAL dan SAFE PARSING)
 
-@immutable
 class MapelDetail {
   final int idJadwal;
   final String namaMapel;
   final String guruPengampu;
   final String hari;
-  final String jam; // Contoh: "08:00 - 09:30"
+  final String jam; // Format: Jam Mulai - Jam Selesai
 
-  const MapelDetail({
+  MapelDetail({
     required this.idJadwal,
     required this.namaMapel,
     required this.guruPengampu,
@@ -16,15 +15,54 @@ class MapelDetail {
     required this.jam,
   });
 
-  /// Factory method yang lebih tangguh untuk parsing JSON.
   factory MapelDetail.fromJson(Map<String, dynamic> json) {
-    // Menggunakan null-aware operator (`??`) untuk menyediakan nilai default
+
+    // Helper function untuk parsing ID/Int yang aman
+    int parseId(dynamic value) {
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    // Helper function untuk parsing String yang aman (default 'N/A')
+    String parseString(dynamic value) {
+      return value?.toString() ?? 'N/A';
+    }
+
+    // 💡 FUNGSI AMAN UNTUK MENGAMBIL NAMA GURU DARI RELASI
+    String getGuruPengampu(Map<String, dynamic> json) {
+      final guruData = json['guru']; // Ambil objek relasi 'guru'
+
+      // 🚀 PERBAIKAN UTAMA: Cek jika guruData adalah Map dan tidak null
+      if (guruData != null && guruData is Map<String, dynamic>) {
+        // Coba ambil nama dari objek guru yang sudah divalidasi
+        return parseString(guruData['nama']);
+      }
+
+      // Cek fallback key (jika Laravel mengirimnya di root)
+      return parseString(json['guru_pengampu']);
+    }
+
+    final String guruNama = getGuruPengampu(json);
+
+    // 💡 Logic Penggabungan Jam:
+    final String jamMulai = parseString(json['jam_mulai']);
+    final String jamSelesai = parseString(json['jam_selesai']);
+
     return MapelDetail(
-      idJadwal: (json['id_jadwal'] as int?) ?? 0,
-      namaMapel: (json['nama_mapel'] as String?) ?? 'Nama Mapel Tidak Tersedia',
-      guruPengampu: (json['guru_pengampu'] as String?) ?? 'Guru Belum Ditentukan',
-      hari: (json['hari'] as String?) ?? 'N/A',
-      jam: (json['jam'] as String?) ?? 'Waktu Tidak Tersedia',
+      idJadwal: parseId(json['id']), // Mengambil dari key 'id' (ID Jadwal)
+
+      // Cek Nama Mapel: Kita ambil dari nama_mapel di root.
+      namaMapel: parseString(json['nama_mapel']),
+
+      guruPengampu: guruNama,
+
+      hari: parseString(json['hari']),
+
+      // Menggabungkan jam, jika salah satu N/A, hasilnya N/A.
+      jam: (jamMulai != 'N/A' && jamSelesai != 'N/A')
+          ? '$jamMulai - $jamSelesai'
+          : 'N/A',
     );
   }
 }

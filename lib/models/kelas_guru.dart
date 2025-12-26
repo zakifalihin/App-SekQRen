@@ -25,14 +25,14 @@ class KelasGuru {
     }
 
     return KelasGuru(
-      // ➡️ PERBAIKAN ID KELAS: Memastikan String ID juga bisa diparsing
-      idKelas: _safeParseInt(json['id_kelas']),
+      // 🚀 PERBAIKAN UTAMA: Prioritaskan 'id' (standar Laravel) atau 'id_kelas'.
+      idKelas: _safeParseInt(json['id'] ?? json['id_kelas']),
 
       namaKelas: (json['nama_kelas'] as String?) ?? 'Kelas Tidak Dikenal',
       namaMapel: (json['nama_mapel'] as String?) ?? 'Mapel Umum',
 
-      // ➡️ PERBAIKAN JUMLAH SISWA: Menggunakan safeParseInt juga
-      jumlahSiswa: _safeParseInt(json['jumlah_siswa']),
+      // 🚀 PERBAIKAN JUMLAH SISWA: Menggunakan 'siswa_count' (dari withCount) atau 'jumlah_siswa'.
+      jumlahSiswa: _safeParseInt(json['siswa_count'] ?? json['jumlah_siswa']),
     );
   }
 }

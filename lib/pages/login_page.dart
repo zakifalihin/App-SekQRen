@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/main_layout.dart'; // ✅ 1. IMPORT MAIN LAYOUT (PENTING)
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -84,7 +85,16 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           ),
         );
 
-        Navigator.pushReplacementNamed(context, '/dashboard');
+        // ✅ 2. PERBAIKAN NAVIGASI (SOLUSI LAYAR HITAM)
+        // Jangan panggil '/dashboard' jika itu mengarah ke DashboardPage biasa.
+        // Panggil MainLayout (Induknya) secara langsung.
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const MainLayout(title: "Dashboard Guru"),
+          ),
+        );
+
       } else {
         setState(() {
           _errorMessage = response["message"]?.toString() ?? "Login gagal";
