@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:absensi_mobile/models/dashboard.dart';
-import 'package:absensi_mobile/services/api_service.dart';
-import 'package:absensi_mobile/pages/login_page.dart';
+import 'package:SekQRen/models/dashboard.dart';
+import 'package:SekQRen/services/api_service.dart';
+import 'package:SekQRen/pages/login_page.dart';
 
 // ❌ PASTIKAN TIDAK ADA IMPORT main_layout.dart DI SINI
 // Karena halaman ini sekarang adalah "Anak" dari MainLayout.

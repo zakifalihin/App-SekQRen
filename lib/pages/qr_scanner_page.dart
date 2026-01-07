@@ -5,6 +5,7 @@ import '../models/kelas_guru.dart';
 import '../models/detail_mapel.dart';
 import '../models/siswa.dart';
 import '../services/api_service.dart';
+import 'dart:convert';
 
 enum ScannerMode {
   ABSENSI_SISWA,
@@ -116,7 +117,21 @@ class _QrScannerPageState extends State<QrScannerPage> with SingleTickerProvider
   // ------------------------------------------------------------------------
   void _handleSiswaScan(String rawValue) async {
     setState(() => _isProcessing = true);
-    final String scannedNisn = rawValue.trim();
+
+    String scannedNisn = rawValue.trim();
+
+    // --- MULAI PERBAIKAN: LOGIKA DECODE JSON ---
+    try {
+      // Coba cek apakah data QR berbentuk JSON
+      if (scannedNisn.startsWith('{') && scannedNisn.endsWith('}')) {
+        final Map<String, dynamic> dataJson = jsonDecode(scannedNisn);
+        if (dataJson.containsKey('nisn')) {
+          scannedNisn = dataJson['nisn'].toString(); // Ambil hanya angka NISN-nya
+        }
+      }
+    } catch (e) {
+      print("Bukan format JSON, memproses sebagai teks biasa.");
+    }
 
     try {
       final siswaList = await _futureSiswaList;

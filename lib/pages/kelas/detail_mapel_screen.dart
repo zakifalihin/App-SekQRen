@@ -242,12 +242,6 @@ class _DetailKelasScreenState extends State<DetailKelasScreen> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               _buildActionButton(
-                label: "Edit",
-                icon: Icons.edit_outlined,
-                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fitur Edit Belum tersedia."))),
-              ),
-              const SizedBox(width: 10),
-              _buildActionButton(
                 label: "Mulai Absen",
                 icon: Icons.qr_code_scanner_rounded,
                 isPrimary: true,

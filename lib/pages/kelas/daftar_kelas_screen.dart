@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/kelas_guru.dart';
 import '../../services/api_service.dart';
 import '../login_page.dart';
-import 'detail_mapel_screen.dart'; // Pastikan nama file ini sesuai dengan DetailKelasScreen
+import 'detail_mapel_screen.dart';
 
 class DaftarKelasScreen extends StatefulWidget {
   const DaftarKelasScreen({super.key});

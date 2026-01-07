@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-// =========================
-// MODELS
-// =========================
+import '../models/aktivitas_absen.dart';
 import '../models/kelas_guru.dart';
 import '../models/detail_mapel.dart';
 import '../models/detail_kelas.dart';
 import '../models/siswa.dart';
+import 'dart:io';
+import '../models/user.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 
 
 // ======================================================
@@ -24,14 +26,13 @@ class ApiService {
   static const String baseUrl = "http://10.0.2.2:8000/api";
 
   // Public IP / VPS (Pastikan IP ini benar dan server menyala)
-  //static const String baseUrl = 'http://172.125.3.159:8000/api';
+  //static const String baseUrl = 'http://172.20.10.11:8000/api';
 
 
   // ======================================================
   // STORAGE (HANYA GUNAKAN SATU JENIS STORAGE)
   // ======================================================
   static const FlutterSecureStorage storage = FlutterSecureStorage();
-
 
   // ======================================================
   // TOKEN HANDLING (PERBAIKAN UTAMA)
@@ -82,26 +83,30 @@ class ApiService {
     return data;
   }
 
-  /// LOGOUT GURU
-  static Future<void> logout() async {
+  /// LOGOUT GURU (FIXED)
+  static Future<bool> logout() async {
     try {
-      final token = await _getToken();
+      final token = await storage.read(key: "token");
       if (token != null) {
+        // Panggil endpoint Laravel
         await http.post(
           Uri.parse("$baseUrl/guru/logout"),
           headers: {
-            "Authorization": "Bearer $token",
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
           },
         );
       }
-    } catch (e) {
-      // Ignore error jika server down/unreachable
-    } finally {
-      // Hapus token dari lokal storage
+      // Hapus token di lokal
       await storage.delete(key: "token");
+      return true;
+    } catch (e) {
+      // Jika gagal koneksi, tetap hapus token lokal demi keamanan
+      await storage.delete(key: "token");
+      return false;
     }
   }
-
 
   // ======================================================
   // DASHBOARD & DATA MASTER
@@ -331,6 +336,210 @@ class ApiService {
       return;
     } else {
       throw Exception(result['message'] ?? 'Gagal mencatat kehadiran');
+    }
+  }
+
+  // ======================================================
+  // AKTIVITAS (RIWAYAT HARI INI)
+  // ======================================================
+  static Future<List<AktivitasAbsen>> getAktivitasHariIni({String? tanggal}) async {
+    final token = await getToken();
+    try {
+      // Menambahkan query parameter ?tanggal=yyyy-mm-dd jika ada
+      final String url = tanggal != null
+          ? '$baseUrl/guru/aktivitas-hari-ini?tanggal=$tanggal'
+          : '$baseUrl/guru/aktivitas-hari-ini';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Accept": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseBody = json.decode(response.body);
+        final List data = responseBody['data'] ?? [];
+        return data.map((item) => AktivitasAbsen.fromJson(item)).toList();
+      } else {
+        throw Exception('Server merespon: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Kesalahan koneksi: $e');
+    }
+  }
+
+  static Future<void> exportAbsensi(String startDate, String endDate) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/absensi/export?start_date=$startDate&end_date=$endDate'),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Accept": "application/json",
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Gagal melakukan export data');
+    }
+    // Logika simpan file (Excel/PDF) bisa menggunakan library path_provider & open_file
+  }
+
+  static Future<void> downloadAndOpenRekap(String startDate, String endDate) async {
+    final token = await getToken();
+    final dio = Dio();
+
+    try {
+      // 1. Dapatkan direktori penyimpanan (Folder Downloads/Documents)
+      Directory? directory;
+      if (Platform.isAndroid) {
+        directory = await getExternalStorageDirectory();
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+      }
+
+      String filePath = "${directory!.path}/Rekap_Absensi_$startDate.xlsx";
+
+      // 2. Lakukan Download menggunakan Dio
+      await dio.download(
+        '$baseUrl/absensi/export',
+        filePath,
+        queryParameters: {
+          'start_date': startDate,
+          'end_date': endDate,
+        },
+        options: Options(
+          headers: {
+            "Authorization": "Bearer $token",
+            "Accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          },
+          responseType: ResponseType.bytes,
+        ),
+      );
+
+      // 3. Buka File secara otomatis
+      await OpenFile.open(filePath);
+
+    } catch (e) {
+      throw Exception("Gagal mengunduh file: $e");
+    }
+  }
+
+  // Ambil detail absensi berdasarkan jadwal
+  static Future<List<Map<String, dynamic>>> getDetailAbsensi(int idJadwal) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/absensi/detail/$idJadwal'),
+      headers: {"Authorization": "Bearer $token", "Accept": "application/json"},
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return List<Map<String, dynamic>>.from(data['data']);
+    }
+    throw Exception('Gagal memuat detail absensi');
+  }
+
+// Update status absensi siswa
+//   static Future<bool> updateStatusSiswa(int idAbsensi, String status) async {
+//     final token = await getToken();
+//     final response = await http.put(
+//       Uri.parse('$baseUrl/absensi/update/$idAbsensi'),
+//       headers: {
+//         "Authorization": "Bearer $token",
+//         "Accept": "application/json",
+//         "Content-Type": "application/json",
+//       },
+//       body: json.encode({"status": status}),
+//     );
+//     return response.statusCode == 200;
+//   }
+
+  static Future<bool> updateStatusSiswa(int idAbsensi, String statusBaru) async {
+    try {
+      // Ganti URL sesuai dengan domain/IP server kamu
+      final url = Uri.parse('$baseUrl/absensi/update-status/$idAbsensi');
+      final token = await getToken();
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'status': statusBaru, // Key ini harus sama dengan validasi di Laravel
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['status'] == 'success';
+      } else {
+        print("Server Error: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Exception: $e");
+      return false;
+    }
+  }
+
+  static Future<User?> getProfile() async {
+    try {
+      final token = await getToken(); // Memanggil helper getToken Anda
+
+      final response = await http.get(
+        Uri.parse("$baseUrl/user-profile"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        // Validasi data tidak null sebelum parsing ke Model
+        if (data['status'] == 'success' && data['data'] != null) {
+          return User.fromJson(data['data']);
+        }
+      }
+      return null;
+    } catch (e) {
+      // Melempar error agar ditangkap FutureBuilder snapshot.error
+      rethrow;
+    }
+  }
+
+  static Future<bool> changePassword(String oldPass, String newPass) async {
+    try {
+      final token = await getToken();
+
+      final response = await http.post(
+        Uri.parse("$baseUrl/change-password"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'old_password': oldPass,
+          'new_password': newPass,
+          'new_password_confirmation': newPass, // Laravel butuh ini untuk validasi confirmed
+        }),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        // Melempar pesan error dari server agar tampil di SnackBar
+        throw Exception(responseData['message'] ?? "Gagal mengganti password");
+      }
+    } catch (e) {
+      rethrow;
     }
   }
 }

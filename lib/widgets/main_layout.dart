@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../pages/aktivitas/aktivitas_screen.dart';
 import '../pages/kelas/daftar_kelas_screen.dart';
 import '../pages/qr_scanner_page.dart';
 import '../pages/login_page.dart';
-import '../pages/dashboard_page.dart'; // Pastikan import dashboard ada
+import '../pages/dashboard_page.dart';
+import '../pages/profile_page.dart';
 
 class MainLayout extends StatefulWidget {
   final String title;
@@ -41,8 +43,8 @@ class _MainLayoutState extends State<MainLayout> with TickerProviderStateMixin {
     _mainPages = [
       const DashboardPage(),         // Index 0: Home/Dashboard
       const DaftarKelasScreen(),     // Index 1: Kelas
-      const Center(child: Text("Aktivitas (TODO)")),
-      const Center(child: Text("Akun (TODO)")),
+      const AktivitasScreen(),
+      const ProfileScreen(),
     ];
 
     _fabAnimationController = AnimationController(
@@ -78,7 +80,6 @@ class _MainLayoutState extends State<MainLayout> with TickerProviderStateMixin {
             (route) => false, // 🚀 Bagian ini yang menghapus semua tumpukan lama
       );
     } else {
-      // Jika sudah di menu utama, cukup ganti index tanpa pindah halaman
       setState(() {
         _selectedIndex = index;
       });
