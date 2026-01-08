@@ -23,10 +23,10 @@ class ApiService {
   // ======================================================
 
   // Android Emulator
-  static const String baseUrl = "http://10.0.2.2:8000/api";
+  //static const String baseUrl = "http://10.0.2.2:8000/api";
 
   // Public IP / VPS (Pastikan IP ini benar dan server menyala)
-  //static const String baseUrl = 'http://172.20.10.11:8000/api';
+  static const String baseUrl = 'https://web-production-cf53a.up.railway.app/api';
 
 
   // ======================================================
